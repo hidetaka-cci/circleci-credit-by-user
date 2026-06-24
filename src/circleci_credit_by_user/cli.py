@@ -12,9 +12,10 @@ from typing import Sequence
 from circleci_credit_by_user.core import (
     CREDIT_COLUMNS,
     DEFAULT_BASE_URL,
-    DEFAULT_SUMMARY_CREDIT_COLUMNS,
+    DEFAULT_DISPLAY_CREDIT_COLUMNS,
     aggregate_by_actor,
     build_actor_map,
+    discover_credit_columns,
     fetch_usage_rows,
     load_usage_csv,
     print_summary,
@@ -58,15 +59,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Cache Pipeline API actor lookups",
     )
     parser.add_argument(
-        "--credit-column",
-        dest="credit_columns",
+        "--sort-by",
+        default="TOTAL_CREDITS",
+        choices=CREDIT_COLUMNS,
+        help="Credit column used to sort the summary table (default: TOTAL_CREDITS)",
+    )
+    parser.add_argument(
+        "--display-column",
+        dest="display_columns",
         action="append",
         choices=CREDIT_COLUMNS,
         metavar="COLUMN",
         help=(
-            "Credit column(s) to aggregate. Repeat for multiple columns. "
-            f"Default: {', '.join(DEFAULT_SUMMARY_CREDIT_COLUMNS)} "
-            "(TOTAL + compute + seat/user fees)"
+            "Credit column(s) shown on stdout. Repeat for multiple columns. "
+            f"Default: {', '.join(DEFAULT_DISPLAY_CREDIT_COLUMNS)}. "
+            "The summary CSV always includes every credit column present in the usage export."
         ),
     )
     parser.add_argument("--workers", type=int, default=8, help="Parallel Pipeline API workers")
@@ -115,11 +122,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         workers=args.workers,
         cache_path=args.actor_cache,
     )
-    credit_columns = args.credit_columns or list(DEFAULT_SUMMARY_CREDIT_COLUMNS)
-    summary = aggregate_by_actor(usage_rows, actor_map, credit_columns=credit_columns)
+    summary = aggregate_by_actor(usage_rows, actor_map, sort_by=args.sort_by)
     write_summary_csv(args.summary_output, summary)
-    print_summary(summary, credit_columns)
+
+    available_columns = discover_credit_columns(usage_rows)
+    display_columns = args.display_columns or [
+        column for column in DEFAULT_DISPLAY_CREDIT_COLUMNS if column in available_columns
+    ]
+    if not display_columns:
+        display_columns = available_columns
+    print_summary(summary, display_columns)
     print(f"\nWrote summary to {args.summary_output}", file=sys.stderr)
+    print(
+        f"Summary CSV includes all usage credit columns: {', '.join(available_columns)}",
+        file=sys.stderr,
+    )
     return 0
 
 

@@ -70,34 +70,38 @@ Pipeline actor lookups are cached at `.cache/pipeline_actors.json` by default.
 
 ## Output
 
-Stdout table (default columns: total, compute, and user/seat credits):
+Stdout table (default display: total, compute, and user/seat credits):
 
 ```
 actor                                     pipelines     jobs  TOTAL_CREDITS COMPUTE_CREDITS   USER_CREDITS
 ------------------------------------------------------------------------------------------------------------
 octocat                                          32      199       38295.00        12000.00       26295.00
 seat-only-user                                    0        0           0.00            0.00       25000.00
-Scheduled                                        10       80      120000.00        15000.00      105000.00
 ```
 
-Summary CSV columns: `actor`, `pipeline_count`, `job_rows`, plus the selected credit columns.
+Summary CSV columns: `actor`, `pipeline_count`, `job_rows`, plus **every credit column present in the Usage export**:
 
-By default the tool outputs **`TOTAL_CREDITS`**, **`COMPUTE_CREDITS`**, and **`USER_CREDITS`** so you can distinguish:
+`TOTAL_CREDITS`, `COMPUTE_CREDITS`, `STORAGE_CREDITS`, `NETWORK_CREDITS`, `USER_CREDITS`, `DLC_CREDITS`, `LEASE_CREDITS`, `LEASE_OVERAGE_CREDITS`, `IPRANGES_CREDITS`
 
-- users who mainly incur **seat fees** (`USER_CREDITS` > 0`, `COMPUTE_CREDITS` ≈ 0`)
-- users who actually **ran CI** (`COMPUTE_CREDITS` > 0)
+This lets you explain:
 
-Override columns:
+- **seat fee only** users (`USER_CREDITS` > 0, `COMPUTE_CREDITS` ≈ 0)
+- users who **ran CI** (`COMPUTE_CREDITS` > 0)
+- **IP Ranges / storage / network** spend without guessing an "OTHER" bucket
+
+Sort and display options:
 
 ```bash
-# Only total credits (previous behavior)
-uv run circleci-credit-by-user --usage-csv usage.csv --credit-column TOTAL_CREDITS
+# Sort by compute instead of total
+uv run circleci-credit-by-user --usage-csv usage.csv --sort-by COMPUTE_CREDITS
 
-# Custom set
+# Show all credit columns on stdout
 uv run circleci-credit-by-user --usage-csv usage.csv \
-  --credit-column TOTAL_CREDITS \
-  --credit-column COMPUTE_CREDITS \
-  --credit-column IPRANGES_CREDITS
+  --display-column TOTAL_CREDITS \
+  --display-column COMPUTE_CREDITS \
+  --display-column USER_CREDITS \
+  --display-column IPRANGES_CREDITS \
+  --display-column STORAGE_CREDITS
 ```
 
 ## Limitations (read before production use)

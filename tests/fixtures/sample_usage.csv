@@ -1,4 +1,4 @@
-"ORGANIZATION_ID","PIPELINE_ID","TOTAL_CREDITS","COMPUTE_CREDITS","USER_CREDITS","JOB_NAME"
-"org-1","pipe-a","10","8","2","job-1"
-"org-1","pipe-a","5","4","1","job-2"
-"org-1","pipe-b","20","0","20","job-3"
+"ORGANIZATION_ID","PIPELINE_ID","TOTAL_CREDITS","COMPUTE_CREDITS","STORAGE_CREDITS","NETWORK_CREDITS","USER_CREDITS","DLC_CREDITS","LEASE_CREDITS","LEASE_OVERAGE_CREDITS","IPRANGES_CREDITS","JOB_NAME"
+"org-1","pipe-a","10","8","0","0","2","0","0","0","0","job-1"
+"org-1","pipe-a","5","4","1","0","0","0","0","0","0","job-2"
+"org-1","pipe-b","20","0","0","0","20","0","0","0","0","job-3"

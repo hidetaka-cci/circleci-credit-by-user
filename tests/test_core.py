@@ -7,11 +7,11 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-import pytest
-
 from circleci_credit_by_user.core import (
+    CREDIT_COLUMNS,
     aggregate_by_actor,
     build_actor_map,
+    discover_credit_columns,
     extract_actor_login,
     load_usage_csv,
     merge_usage_csv_parts,
@@ -39,6 +39,11 @@ def test_merge_usage_csv_parts() -> None:
     assert len(rows) == 3
 
 
+def test_discover_credit_columns_from_fixture() -> None:
+    rows = load_usage_csv(FIXTURES / "sample_usage.csv")
+    assert discover_credit_columns(rows) == list(CREDIT_COLUMNS)
+
+
 def test_extract_actor_login_prefers_trigger_actor() -> None:
     pipeline = {
         "trigger": {"actor": {"login": "octocat"}},
@@ -55,28 +60,29 @@ def test_extract_actor_login_falls_back_to_trigger_parameters() -> None:
     assert extract_actor_login(pipeline) == "fallback-user"
 
 
-def test_aggregate_by_actor_defaults_to_total_compute_and_user_credits() -> None:
+def test_aggregate_by_actor_sums_all_credit_columns() -> None:
     rows = load_usage_csv(FIXTURES / "sample_usage.csv")
     actor_map = {"pipe-a": "alice", "pipe-b": "bob"}
     summary = aggregate_by_actor(rows, actor_map)
     by_actor = {row["actor"]: row for row in summary}
+
     assert by_actor["alice"]["TOTAL_CREDITS"] == 15.0
     assert by_actor["alice"]["COMPUTE_CREDITS"] == 12.0
-    assert by_actor["alice"]["USER_CREDITS"] == 3.0
+    assert by_actor["alice"]["STORAGE_CREDITS"] == 1.0
+    assert by_actor["alice"]["USER_CREDITS"] == 2.0
     assert by_actor["bob"]["TOTAL_CREDITS"] == 20.0
     assert by_actor["bob"]["COMPUTE_CREDITS"] == 0.0
     assert by_actor["bob"]["USER_CREDITS"] == 20.0
+    assert by_actor["alice"]["IPRANGES_CREDITS"] == 0.0
     assert by_actor["alice"]["pipeline_count"] == 1
     assert by_actor["alice"]["job_rows"] == 2
 
 
-def test_aggregate_by_actor_supports_custom_credit_columns() -> None:
+def test_aggregate_by_actor_supports_sort_by() -> None:
     rows = load_usage_csv(FIXTURES / "sample_usage.csv")
     actor_map = {"pipe-a": "alice", "pipe-b": "bob"}
-    summary = aggregate_by_actor(rows, actor_map, credit_columns=["COMPUTE_CREDITS"])
-    by_actor = {row["actor"]: row for row in summary}
-    assert set(by_actor["alice"].keys()) == {"actor", "pipeline_count", "job_rows", "COMPUTE_CREDITS"}
-    assert by_actor["alice"]["COMPUTE_CREDITS"] == 12.0
+    summary = aggregate_by_actor(rows, actor_map, sort_by="USER_CREDITS")
+    assert summary[0]["actor"] == "bob"
 
 
 def test_build_actor_map_uses_cache() -> None:

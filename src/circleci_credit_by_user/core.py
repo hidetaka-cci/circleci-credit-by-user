@@ -32,7 +32,7 @@ CREDIT_COLUMNS = (
     "LEASE_OVERAGE_CREDITS",
     "IPRANGES_CREDITS",
 )
-DEFAULT_SUMMARY_CREDIT_COLUMNS = ("TOTAL_CREDITS", "COMPUTE_CREDITS", "USER_CREDITS")
+DEFAULT_DISPLAY_CREDIT_COLUMNS = ("TOTAL_CREDITS", "COMPUTE_CREDITS", "USER_CREDITS")
 
 
 @dataclass(frozen=True)
@@ -319,14 +319,24 @@ def build_actor_map(
     return actor_map
 
 
+def discover_credit_columns(rows: Sequence[dict[str, str]]) -> list[str]:
+    if not rows:
+        return list(CREDIT_COLUMNS)
+    row_keys = set(rows[0].keys())
+    return [column for column in CREDIT_COLUMNS if column in row_keys]
+
+
 def aggregate_by_actor(
     rows: Sequence[dict[str, str]],
     actor_map: dict[str, str | None],
-    credit_columns: Sequence[str] | None = None,
+    *,
+    sort_by: str = "TOTAL_CREDITS",
 ) -> list[dict[str, str | float | int]]:
-    columns = list(credit_columns or DEFAULT_SUMMARY_CREDIT_COLUMNS)
+    columns = discover_credit_columns(rows)
     if not columns:
-        raise ValueError("at least one credit column is required")
+        raise ValueError("No credit columns found in usage CSV")
+    if sort_by not in columns:
+        raise ValueError(f"sort column {sort_by!r} is not present in usage CSV")
 
     totals: dict[str, dict[str, float | int]] = defaultdict(
         lambda: {"job_rows": 0, **{column: 0.0 for column in columns}}
@@ -352,7 +362,7 @@ def aggregate_by_actor(
         for column in columns:
             entry[column] = round(float(bucket[column]), 4)
         result.append(entry)
-    result.sort(key=lambda item: float(item[columns[0]]), reverse=True)
+    result.sort(key=lambda item: float(item[sort_by]), reverse=True)
     return result
 
 
