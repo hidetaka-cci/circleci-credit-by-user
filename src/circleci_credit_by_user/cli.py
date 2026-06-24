@@ -12,6 +12,7 @@ from typing import Sequence
 from circleci_credit_by_user.core import (
     CREDIT_COLUMNS,
     DEFAULT_BASE_URL,
+    DEFAULT_SUMMARY_CREDIT_COLUMNS,
     aggregate_by_actor,
     build_actor_map,
     fetch_usage_rows,
@@ -58,9 +59,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--credit-column",
-        default="TOTAL_CREDITS",
+        dest="credit_columns",
+        action="append",
         choices=CREDIT_COLUMNS,
-        help="Credit column to aggregate (default: TOTAL_CREDITS)",
+        metavar="COLUMN",
+        help=(
+            "Credit column(s) to aggregate. Repeat for multiple columns. "
+            f"Default: {', '.join(DEFAULT_SUMMARY_CREDIT_COLUMNS)} "
+            "(TOTAL + compute + seat/user fees)"
+        ),
     )
     parser.add_argument("--workers", type=int, default=8, help="Parallel Pipeline API workers")
     parser.add_argument("--poll-interval", type=float, default=5.0)
@@ -108,9 +115,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         workers=args.workers,
         cache_path=args.actor_cache,
     )
-    summary = aggregate_by_actor(usage_rows, actor_map, credit_column=args.credit_column)
+    credit_columns = args.credit_columns or list(DEFAULT_SUMMARY_CREDIT_COLUMNS)
+    summary = aggregate_by_actor(usage_rows, actor_map, credit_columns=credit_columns)
     write_summary_csv(args.summary_output, summary)
-    print_summary(summary, args.credit_column)
+    print_summary(summary, credit_columns)
     print(f"\nWrote summary to {args.summary_output}", file=sys.stderr)
     return 0
 

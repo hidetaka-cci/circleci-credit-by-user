@@ -1,4 +1,4 @@
-"ORGANIZATION_ID","PIPELINE_ID","TOTAL_CREDITS","JOB_NAME"
-"org-1","pipe-a","10","job-1"
-"org-1","pipe-a","5","job-2"
-"org-1","pipe-b","20","job-3"
+"ORGANIZATION_ID","PIPELINE_ID","TOTAL_CREDITS","COMPUTE_CREDITS","USER_CREDITS","JOB_NAME"
+"org-1","pipe-a","10","8","2","job-1"
+"org-1","pipe-a","5","4","1","job-2"
+"org-1","pipe-b","20","0","20","job-3"

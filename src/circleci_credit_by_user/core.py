@@ -32,6 +32,7 @@ CREDIT_COLUMNS = (
     "LEASE_OVERAGE_CREDITS",
     "IPRANGES_CREDITS",
 )
+DEFAULT_SUMMARY_CREDIT_COLUMNS = ("TOTAL_CREDITS", "COMPUTE_CREDITS", "USER_CREDITS")
 
 
 @dataclass(frozen=True)
@@ -321,10 +322,14 @@ def build_actor_map(
 def aggregate_by_actor(
     rows: Sequence[dict[str, str]],
     actor_map: dict[str, str | None],
-    credit_column: str = "TOTAL_CREDITS",
+    credit_columns: Sequence[str] | None = None,
 ) -> list[dict[str, str | float | int]]:
+    columns = list(credit_columns or DEFAULT_SUMMARY_CREDIT_COLUMNS)
+    if not columns:
+        raise ValueError("at least one credit column is required")
+
     totals: dict[str, dict[str, float | int]] = defaultdict(
-        lambda: {"job_rows": 0, "pipeline_count": 0, credit_column: 0.0}
+        lambda: {"job_rows": 0, **{column: 0.0 for column in columns}}
     )
     pipeline_sets: dict[str, set[str]] = defaultdict(set)
 
@@ -333,20 +338,21 @@ def aggregate_by_actor(
         actor = actor_map.get(pipeline_id) or "(unknown)"
         bucket = totals[actor]
         bucket["job_rows"] = int(bucket["job_rows"]) + 1
-        bucket[credit_column] = float(bucket[credit_column]) + parse_float(row.get(credit_column))
+        for column in columns:
+            bucket[column] = float(bucket[column]) + parse_float(row.get(column))
         pipeline_sets[actor].add(pipeline_id)
 
     result: list[dict[str, str | float | int]] = []
     for actor, bucket in totals.items():
-        result.append(
-            {
-                "actor": actor,
-                "pipeline_count": len(pipeline_sets[actor]),
-                "job_rows": int(bucket["job_rows"]),
-                credit_column: round(float(bucket[credit_column]), 4),
-            }
-        )
-    result.sort(key=lambda item: float(item[credit_column]), reverse=True)
+        entry: dict[str, str | float | int] = {
+            "actor": actor,
+            "pipeline_count": len(pipeline_sets[actor]),
+            "job_rows": int(bucket["job_rows"]),
+        }
+        for column in columns:
+            entry[column] = round(float(bucket[column]), 4)
+        result.append(entry)
+    result.sort(key=lambda item: float(item[columns[0]]), reverse=True)
     return result
 
 
@@ -361,11 +367,18 @@ def write_summary_csv(path: Path, rows: Sequence[dict[str, str | float | int]]) 
         writer.writerows(rows)
 
 
-def print_summary(rows: Sequence[dict[str, str | float | int]], credit_column: str) -> None:
-    print(f"{'actor':40} {'pipelines':>10} {'jobs':>8} {credit_column:>14}")
-    print("-" * 76)
+def print_summary(rows: Sequence[dict[str, str | float | int]], credit_columns: Sequence[str]) -> None:
+    columns = list(credit_columns)
+    header = f"{'actor':40} {'pipelines':>10} {'jobs':>8}"
+    for column in columns:
+        header += f" {column:>14}"
+    print(header)
+    print("-" * (58 + 15 * len(columns)))
     for row in rows:
-        print(
+        line = (
             f"{row['actor']!s:40} {row['pipeline_count']:>10} "
-            f"{row['job_rows']:>8} {float(row[credit_column]):>14.2f}"
+            f"{row['job_rows']:>8}"
         )
+        for column in columns:
+            line += f" {float(row[column]):>14.2f}"
+        print(line)

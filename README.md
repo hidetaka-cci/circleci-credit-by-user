@@ -70,16 +70,35 @@ Pipeline actor lookups are cached at `.cache/pipeline_actors.json` by default.
 
 ## Output
 
-Stdout table:
+Stdout table (default columns: total, compute, and user/seat credits):
 
 ```
-actor                                     pipelines     jobs  TOTAL_CREDITS
-----------------------------------------------------------------------------
-octocat                                          32      199       38295.00
-Scheduled                                        10       80      120000.00
+actor                                     pipelines     jobs  TOTAL_CREDITS COMPUTE_CREDITS   USER_CREDITS
+------------------------------------------------------------------------------------------------------------
+octocat                                          32      199       38295.00        12000.00       26295.00
+seat-only-user                                    0        0           0.00            0.00       25000.00
+Scheduled                                        10       80      120000.00        15000.00      105000.00
 ```
 
-Summary CSV columns: `actor`, `pipeline_count`, `job_rows`, `TOTAL_CREDITS`
+Summary CSV columns: `actor`, `pipeline_count`, `job_rows`, plus the selected credit columns.
+
+By default the tool outputs **`TOTAL_CREDITS`**, **`COMPUTE_CREDITS`**, and **`USER_CREDITS`** so you can distinguish:
+
+- users who mainly incur **seat fees** (`USER_CREDITS` > 0`, `COMPUTE_CREDITS` ≈ 0`)
+- users who actually **ran CI** (`COMPUTE_CREDITS` > 0)
+
+Override columns:
+
+```bash
+# Only total credits (previous behavior)
+uv run circleci-credit-by-user --usage-csv usage.csv --credit-column TOTAL_CREDITS
+
+# Custom set
+uv run circleci-credit-by-user --usage-csv usage.csv \
+  --credit-column TOTAL_CREDITS \
+  --credit-column COMPUTE_CREDITS \
+  --credit-column IPRANGES_CREDITS
+```
 
 ## Limitations (read before production use)
 
