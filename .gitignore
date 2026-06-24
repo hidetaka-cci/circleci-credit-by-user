@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# uv (lockfile is committed for reproducible installs)
+
+# Tool output
+.cache/
+*.csv
+!tests/fixtures/*.csv
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets
+.env
+.env.*

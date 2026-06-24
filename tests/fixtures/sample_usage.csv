@@ -1,0 +1,4 @@
+"ORGANIZATION_ID","PIPELINE_ID","TOTAL_CREDITS","JOB_NAME"
+"org-1","pipe-a","10","job-1"
+"org-1","pipe-a","5","job-2"
+"org-1","pipe-b","20","job-3"
