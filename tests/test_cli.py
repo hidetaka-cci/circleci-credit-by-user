@@ -37,6 +37,12 @@ def test_parse_args_org_id_defaults_from_env(monkeypatch: pytest.MonkeyPatch) ->
     assert args.org_id == "org-from-env"
 
 
+def test_parse_args_base_url_defaults_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CIRCLECI_BASE_URL", "https://circleci.example.com")
+    args = cli.parse_args(["--org-id", "org-1"])
+    assert args.base_url == "https://circleci.example.com"
+
+
 def test_parse_args_display_column_repeats() -> None:
     args = cli.parse_args(
         ["--display-column", "COMPUTE_CREDITS", "--display-column", "USER_CREDITS"]
@@ -93,6 +99,65 @@ def test_main_writes_usage_output_when_requested(
     assert exit_code == 0
     assert usage_output.is_file()
     assert "pipe-a" in usage_output.read_text()
+
+
+def test_main_strips_trailing_slash_from_base_url_for_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CIRCLECI_TOKEN", "test-token")
+    captured: dict[str, str] = {}
+
+    def fake_fetch_usage_rows(base_url, org_id, token, start, end, poll_interval, timeout_seconds):
+        captured["base_url"] = base_url
+        return []
+
+    monkeypatch.setattr(cli, "fetch_usage_rows", fake_fetch_usage_rows)
+
+    exit_code = cli.main(
+        [
+            "--org-id",
+            "org-1",
+            "--start-date",
+            "2026-01-01",
+            "--end-date",
+            "2026-01-02",
+            "--base-url",
+            "https://example.com/",
+            "--skip-pipeline-fetch",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["base_url"] == "https://example.com"
+
+
+def test_main_falls_back_to_available_columns_when_defaults_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CIRCLECI_TOKEN", "test-token")
+
+    usage_csv = tmp_path / "usage.csv"
+    usage_csv.write_text("PIPELINE_ID,STORAGE_CREDITS\npipe-a,5\n")
+
+    def fake_build_actor_map(base_url, token, pipeline_ids, workers=8, cache_path=None):
+        return {"pipe-a": "alice"}
+
+    monkeypatch.setattr(cli, "build_actor_map", fake_build_actor_map)
+
+    exit_code = cli.main(
+        [
+            "--usage-csv",
+            str(usage_csv),
+            "--sort-by",
+            "STORAGE_CREDITS",
+            "--summary-output",
+            str(tmp_path / "summary.csv"),
+        ]
+    )
+
+    assert exit_code == 0
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "STORAGE_CREDITS" in header
 
 
 def test_main_full_flow_writes_summary(

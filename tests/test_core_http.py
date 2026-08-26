@@ -45,6 +45,18 @@ def test_api_request_returns_parsed_json_on_success(monkeypatch: pytest.MonkeyPa
     assert result == {"ok": True}
 
 
+def test_api_request_uses_default_timeout_of_60_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req: object, timeout: object = None) -> FakeResponse:
+        captured["timeout"] = timeout
+        return FakeResponse(json.dumps({"ok": True}).encode())
+
+    monkeypatch.setattr(core.urllib.request, "urlopen", fake_urlopen)
+    core.api_request("GET", "https://example.com/x", "token")
+    assert captured["timeout"] == 60
+
+
 def test_api_request_returns_empty_dict_for_empty_body(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         core.urllib.request, "urlopen", lambda req, timeout=60: FakeResponse(b"")
@@ -110,6 +122,18 @@ def test_create_usage_export_job_builds_job_from_response(
     assert captured["url"] == "https://example.com/api/v2/organizations/org-1/usage_export_job"
 
 
+def test_create_usage_export_job_defaults_state_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        core, "api_request", lambda *a, **kw: {"usage_export_job_id": "job-1"}
+    )
+    job = core.create_usage_export_job(
+        "https://example.com", "org-1", "token", date(2026, 1, 1), date(2026, 1, 2)
+    )
+    assert job.state == "created"
+
+
 def test_poll_usage_export_job_returns_completed_job(monkeypatch: pytest.MonkeyPatch) -> None:
     responses = [
         {"usage_export_job_id": "job-1", "state": "processing"},
@@ -126,6 +150,24 @@ def test_poll_usage_export_job_returns_completed_job(monkeypatch: pytest.MonkeyP
     )
     assert job.state == "completed"
     assert job.download_urls == ["https://x/1.csv.gz"]
+
+
+def test_poll_usage_export_job_sleeps_with_poll_interval(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = [
+        {"usage_export_job_id": "job-1", "state": "processing"},
+        {"usage_export_job_id": "job-1", "state": "completed", "download_urls": ["https://x/1.csv.gz"]},
+    ]
+
+    def fake_api_request(*args: object, **kwargs: object) -> dict:
+        return responses.pop(0)
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(core, "api_request", fake_api_request)
+    monkeypatch.setattr(core.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    core.poll_usage_export_job(
+        "https://example.com", "org-1", "token", "job-1", poll_interval=2.5, timeout_seconds=60
+    )
+    assert sleep_calls == [2.5]
 
 
 def test_poll_usage_export_job_raises_on_failed_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -214,6 +256,31 @@ def test_build_actor_map_fetches_missing_pipelines_over_network(
         assert actor_map == {"pipe-a": "cached-user", "pipe-b": "actor-for-pipe-b"}
         persisted = json.loads(cache_path.read_text())
         assert persisted == actor_map
+
+
+def test_build_actor_map_flushes_cache_periodically(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fake_fetch(base_url: str, token: str, pipeline_id: str) -> tuple[str, str | None]:
+        return pipeline_id, f"actor-for-{pipeline_id}"
+
+    monkeypatch.setattr(core, "fetch_pipeline_actor", fake_fetch)
+
+    write_calls: list[Path] = []
+    original_write_text = Path.write_text
+
+    def counting_write_text(self: Path, data: str, *args: object, **kwargs: object) -> int:
+        write_calls.append(self)
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", counting_write_text)
+
+    cache_path = tmp_path / "actors.json"
+    pipeline_ids = [f"pipe-{i}" for i in range(251)]
+    core.build_actor_map("https://example.com", "token", pipeline_ids, cache_path=cache_path)
+
+    # One periodic flush at the 250th completion, plus one final flush after the loop.
+    assert len(write_calls) == 2
 
 
 def test_fetch_usage_rows_composes_export_and_download_per_chunk(
