@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import tempfile
 from datetime import date
 from pathlib import Path
+
+import pytest
 
 from circleci_credit_by_user.core import (
     CREDIT_COLUMNS,
@@ -15,8 +18,14 @@ from circleci_credit_by_user.core import (
     extract_actor_login,
     load_usage_csv,
     merge_usage_csv_parts,
+    parse_float,
+    print_summary,
+    resolve_token,
+    save_usage_csv,
     split_date_ranges,
+    to_export_datetime,
     unique_pipeline_ids,
+    write_summary_csv,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -96,3 +105,104 @@ def test_build_actor_map_uses_cache() -> None:
             cache_path=cache_path,
         )
         assert actor_map["pipe-a"] == "cached-user"
+
+
+def test_merge_usage_csv_parts_decompresses_gzip() -> None:
+    raw = (FIXTURES / "sample_usage.csv").read_bytes()
+    gzipped = gzip.compress(raw)
+    rows = merge_usage_csv_parts([gzipped])
+    assert len(rows) == 3
+    assert rows[0]["PIPELINE_ID"] == "pipe-a"
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (None, 0.0),
+        ("", 0.0),
+        (r"\N", 0.0),
+        ("NULL", 0.0),
+        ("3.5", 3.5),
+        ("0", 0.0),
+    ],
+)
+def test_parse_float_handles_null_markers(value: str | None, expected: float) -> None:
+    assert parse_float(value) == expected
+
+
+def test_to_export_datetime_start_of_day() -> None:
+    assert to_export_datetime(date(2026, 1, 1)) == "2026-01-01T00:00:00Z"
+
+
+def test_to_export_datetime_end_of_day() -> None:
+    assert to_export_datetime(date(2026, 1, 1), end_of_day=True) == "2026-01-01T23:59:59Z"
+
+
+def test_resolve_token_prefers_explicit_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CIRCLECI_TOKEN", "env-token")
+    assert resolve_token("explicit-token") == "explicit-token"
+
+
+def test_resolve_token_falls_back_to_circleci_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CIRCLECI_API_TOKEN", raising=False)
+    monkeypatch.setenv("CIRCLECI_TOKEN", "env-token")
+    assert resolve_token(None) == "env-token"
+
+
+def test_resolve_token_falls_back_to_circleci_api_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CIRCLECI_TOKEN", raising=False)
+    monkeypatch.setenv("CIRCLECI_API_TOKEN", "api-env-token")
+    assert resolve_token(None) == "api-env-token"
+
+
+def test_resolve_token_falls_back_to_cli_config_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("CIRCLECI_TOKEN", raising=False)
+    monkeypatch.delenv("CIRCLECI_API_TOKEN", raising=False)
+    circleci_dir = tmp_path / ".circleci"
+    circleci_dir.mkdir()
+    (circleci_dir / "cli.yml").write_text("token: file-token\nother: value\n")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert resolve_token(None) == "file-token"
+
+
+def test_resolve_token_raises_when_nothing_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("CIRCLECI_TOKEN", raising=False)
+    monkeypatch.delenv("CIRCLECI_API_TOKEN", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    with pytest.raises(SystemExit):
+        resolve_token(None)
+
+
+def test_print_summary_formats_rows(capsys: pytest.CaptureFixture[str]) -> None:
+    rows = [
+        {"actor": "alice", "pipeline_count": 1, "job_rows": 2, "TOTAL_CREDITS": 15.0},
+    ]
+    print_summary(rows, ["TOTAL_CREDITS"])
+    out = capsys.readouterr().out
+    assert "alice" in out
+    assert "15.00" in out
+    lines = out.splitlines()
+    assert lines[0].split() == ["actor", "pipelines", "jobs", "TOTAL_CREDITS"]
+
+
+def test_write_summary_csv_writes_header_and_rows(tmp_path: Path) -> None:
+    rows = [{"actor": "alice", "TOTAL_CREDITS": 15.0}]
+    out_path = tmp_path / "summary.csv"
+    write_summary_csv(out_path, rows)
+    content = out_path.read_text()
+    assert "actor" in content.splitlines()[0]
+    assert "alice" in content
+
+
+def test_write_summary_csv_raises_on_empty_rows(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        write_summary_csv(tmp_path / "summary.csv", [])
+
+
+def test_save_usage_csv_raises_on_empty_rows(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        save_usage_csv(tmp_path / "usage.csv", [])
