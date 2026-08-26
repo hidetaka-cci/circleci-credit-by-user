@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "circleci-builds": {
+      "source": "CircleCI-Public/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/circleci/skills/builds/SKILL.md",
+      "computedHash": "6b79c1b8edbc3726ff74007bab4361f16309a3cf3e1b487614e86c6a0c7b3319"
+    },
+    "circleci-cli": {
+      "source": "CircleCI-Public/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/circleci/skills/cli/SKILL.md",
+      "computedHash": "e9d50a99490da1c46f0918d42f019d703c3c641dc36d1298f873e14e826d3ff0"
+    },
+    "circleci-config": {
+      "source": "CircleCI-Public/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/circleci/skills/config/SKILL.md",
+      "computedHash": "3662ac764db0f23e633dd45d6a2c2aad58c2bc4332ee19da13993ad6156c7ea2"
+    }
+  }
+}
