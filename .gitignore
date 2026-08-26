@@ -12,6 +12,8 @@ build/
 .cache/
 *.csv
 !tests/fixtures/*.csv
+.coverage
+coverage-html/
 
 # IDE
 .idea/
