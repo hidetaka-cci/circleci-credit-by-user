@@ -37,6 +37,11 @@ def test_split_date_ranges_respects_32_day_window() -> None:
     assert ranges[1] == (date(2026, 2, 2), date(2026, 2, 15))
 
 
+def test_split_date_ranges_raises_when_start_after_end() -> None:
+    with pytest.raises(ValueError):
+        split_date_ranges(date(2026, 2, 1), date(2026, 1, 1))
+
+
 def test_unique_pipeline_ids_from_fixture() -> None:
     rows = load_usage_csv(FIXTURES / "sample_usage.csv")
     assert unique_pipeline_ids(rows) == ["pipe-a", "pipe-b"]
@@ -53,6 +58,10 @@ def test_discover_credit_columns_from_fixture() -> None:
     assert discover_credit_columns(rows) == list(CREDIT_COLUMNS)
 
 
+def test_discover_credit_columns_empty_rows_returns_all_columns() -> None:
+    assert discover_credit_columns([]) == list(CREDIT_COLUMNS)
+
+
 def test_extract_actor_login_prefers_trigger_actor() -> None:
     pipeline = {
         "trigger": {"actor": {"login": "octocat"}},
@@ -67,6 +76,22 @@ def test_extract_actor_login_falls_back_to_trigger_parameters() -> None:
         "trigger_parameters": {"circleci": {"provider_login": "fallback-user"}},
     }
     assert extract_actor_login(pipeline) == "fallback-user"
+
+
+def test_extract_actor_login_falls_back_to_github_app_trigger_parameters() -> None:
+    pipeline = {
+        "trigger": {"actor": {}},
+        "trigger_parameters": {"github_app": {"provider_login": "gha-user"}},
+    }
+    assert extract_actor_login(pipeline) == "gha-user"
+
+
+def test_extract_actor_login_falls_back_to_user_name_candidate() -> None:
+    pipeline = {
+        "trigger": {"actor": {}},
+        "trigger_parameters": {"git": {"user_name": "git-user"}},
+    }
+    assert extract_actor_login(pipeline) == "git-user"
 
 
 def test_aggregate_by_actor_sums_all_credit_columns() -> None:
@@ -92,6 +117,13 @@ def test_aggregate_by_actor_supports_sort_by() -> None:
     actor_map = {"pipe-a": "alice", "pipe-b": "bob"}
     summary = aggregate_by_actor(rows, actor_map, sort_by="USER_CREDITS")
     assert summary[0]["actor"] == "bob"
+
+
+def test_aggregate_by_actor_raises_for_unknown_sort_column() -> None:
+    rows = load_usage_csv(FIXTURES / "sample_usage.csv")
+    actor_map = {"pipe-a": "alice", "pipe-b": "bob"}
+    with pytest.raises(ValueError):
+        aggregate_by_actor(rows, actor_map, sort_by="NOT_A_COLUMN")
 
 
 def test_build_actor_map_uses_cache() -> None:
