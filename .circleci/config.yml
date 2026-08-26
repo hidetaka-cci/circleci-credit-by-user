@@ -20,10 +20,14 @@ jobs:
           name: Run tests
           command: |
             mkdir -p test-results
-            uv run pytest --junit-xml=test-results/junit.xml
+            uv run pytest --junit-xml=test-results/junit.xml \
+              --cov --cov-report=term-missing --cov-report=html:coverage-html
       - store_test_results:
           when: always
           path: test-results
+      - store_artifacts:
+          when: always
+          path: coverage-html
       - run:
           name: Smoke test CLI
           command: uv run circleci-credit-by-user --help
