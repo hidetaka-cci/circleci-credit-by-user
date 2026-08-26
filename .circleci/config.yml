@@ -1,0 +1,37 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@4.0.0
+
+jobs:
+  test:
+    parameters:
+      python-version:
+        type: string
+    executor:
+      name: python/default
+      tag: << parameters.python-version >>
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: uv
+          args: --dev
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p test-results
+            uv run pytest --junit-xml=test-results/junit.xml
+      - store_test_results:
+          when: always
+          path: test-results
+      - run:
+          name: Smoke test CLI
+          command: uv run circleci-credit-by-user --help
+
+workflows:
+  ci:
+    jobs:
+      - test:
+          matrix:
+            parameters:
+              python-version: ["3.10", "3.12", "3.13"]
