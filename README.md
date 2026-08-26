@@ -1,5 +1,7 @@
 # circleci-credit-by-user
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/hidetaka-cci/circleci-credit-by-user/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/hidetaka-cci/circleci-credit-by-user/tree/main)
+
 **English** | [日本語](README.ja.md)
 
 Community CLI to aggregate **CircleCI credits by trigger actor** (GitHub/Bitbucket login).

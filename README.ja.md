@@ -1,5 +1,7 @@
 # circleci-credit-by-user
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/hidetaka-cci/circleci-credit-by-user/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/hidetaka-cci/circleci-credit-by-user/tree/main)
+
 [English](README.md) | **日本語**
 
 CircleCI の **クレジット利用量をトリガー actor（GitHub/Bitbucket ログイン）別に集計**するコミュニティ CLI です。
